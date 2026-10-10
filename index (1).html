@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f6f5c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Read Aloud Coach</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Read Aloud">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Literata:opsz,wght@7..72,400;7..72,500&family=Noto+Sans+Ethiopic:wght@400;600&display=swap">
+<style>
+/* Layout: one column, tabs on top, record control docked at the bottom like a voice recorder */
+:root{
+  --bg:#f4f6f3; --surface:#ffffff; --fg:#1b2321; --muted:#5d6a65; --line:#dce3df;
+  --accent:#1f6f5c; --accent-soft:#dcefe8; --miss:#c4302b; --miss-soft:#fbe3e1;
+  --weak:#a35a00; --weak-soft:#fdeccd; --ok:#2c7a4d; --ok-soft:#e1f2e7; --cur:#fff3c4;
+  --f-ui:"Figtree",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-read:"Literata",Georgia,"Times New Roman",serif;
+  --f-am:"Noto Sans Ethiopic","Nyala","Abyssinica SIL",sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#1a2220; --fg:#e4ebe8; --muted:#9aa9a3; --line:#2a3531;
+  --accent:#5cc2a4; --accent-soft:#1d3a32; --miss:#ff7a72; --miss-soft:#3d1f1d;
+  --weak:#f0b25a; --weak-soft:#3a2c14; --ok:#72d39c; --ok-soft:#1b3526; --cur:#4a4020; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#1a2220; --fg:#e4ebe8; --muted:#9aa9a3; --line:#2a3531;
+  --accent:#5cc2a4; --accent-soft:#1d3a32; --miss:#ff7a72; --miss-soft:#3d1f1d;
+  --weak:#f0b25a; --weak-soft:#3a2c14; --ok:#72d39c; --ok-soft:#1b3526; --cur:#4a4020; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:16px/1.5 var(--f-ui);
+  padding:env(safe-area-inset-top,0px) 0 calc(96px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px 6px}
+h1{font-size:1.15rem;margin:0}
+h1 span{color:var(--accent)}
+h2{font-size:1rem;margin:18px 0 6px}
+.tabs{display:flex;gap:4px;background:var(--line);padding:4px;border-radius:12px;margin-block:8px 14px}
+.tabs button{flex:1;border:0;background:transparent;color:var(--muted);font:600 .9rem var(--f-ui);padding:9px 4px;border-radius:9px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--fg)}
+.note{border-radius:10px;padding:10px 12px;font-size:.92rem;margin-bottom:12px;background:var(--weak-soft);color:var(--weak)}
+.note.err{background:var(--miss-soft);color:var(--miss)}
+.note a{color:inherit;font-weight:600}
+.tools{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--fg);font:500 .92rem var(--f-ui);
+  padding:9px 14px;border-radius:999px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn:focus-visible,.tabs button:focus-visible,.w:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--surface)}
+.btn.danger{color:var(--miss)}
+.btn[disabled]{opacity:.5}
+input[type=text],input[type=password]{width:100%;font:16px var(--f-ui);color:var(--fg);background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+label.f{display:block;font-size:.8rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
+.page{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin-bottom:12px;
+  font:1.2rem/1.85 var(--f-read);min-height:9em}
+.page .ph{font:1rem/1.5 var(--f-ui);color:var(--muted)}
+.page .interim{color:var(--muted)}
+.w{border-radius:4px;padding:0 1px;cursor:pointer}
+.w.miss{color:var(--miss);background:var(--miss-soft);text-decoration:underline wavy;text-underline-offset:4px}
+.w.weak{color:var(--weak);background:var(--weak-soft)}
+.w.speaking{background:var(--cur)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:.82rem;color:var(--muted);margin:-4px 0 12px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.summary{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px}
+.scores{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:10px;margin-bottom:10px}
+.scores div{font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.scores b{display:block;font-size:1.6rem;letter-spacing:0;color:var(--fg);font-variant-numeric:tabular-nums}
+.summary p{margin:4px 0 10px;color:var(--muted)}
+.live{font-size:.9rem;color:var(--muted);min-height:1.4em;margin:0 0 8px}
+.dock{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);
+  padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));z-index:5}
+.dock .row{max-width:720px;margin:0 auto;display:flex;gap:8px}
+.dock .btn{justify-content:center;padding:13px 8px}
+#recBtn{flex:1;font-size:1rem}
+.rec{background:var(--miss)!important;border-color:var(--miss)!important;color:var(--surface)!important}
+.dot{width:10px;height:10px;border-radius:50%;background:currentColor;display:inline-block}
+.rec .dot{animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.rec .dot{animation:none}}
+.wordlist{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.wordlist li{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;
+  display:grid;grid-template-columns:1fr auto;gap:2px 12px;cursor:pointer;align-items:center}
+.wordlist .wd{font:500 1.1rem var(--f-read)}
+.wordlist .am{font-family:var(--f-am);color:var(--muted);font-size:.95rem}
+.wordlist .meta{grid-row:1/3;grid-column:2;text-align:right;font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.streak{display:flex;gap:3px;justify-content:flex-end;margin-top:4px}
+.streak i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.streak i.on{background:var(--ok)}
+.empty{color:var(--muted);text-align:center;padding:24px 10px;display:block!important;cursor:default!important}
+.hint{color:var(--muted);font-size:.88rem;margin:8px 0 14px}
+ol.steps{padding-left:20px;margin:6px 0;color:var(--fg)}
+ol.steps li{margin-bottom:6px}
+code{background:var(--accent-soft);padding:1px 5px;border-radius:5px;font-size:.88em}
+/* bottom sheet */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:86vh;overflow:auto;background:var(--surface);
+  border-radius:18px 18px 0 0;z-index:10;padding:8px 0 calc(18px + env(safe-area-inset-bottom,0px))}
+.sheet .grip{width:40px;height:4px;background:var(--line);border-radius:4px;margin:4px auto 10px}
+.sheet .in{max-width:720px;margin:0 auto;padding-inline:18px}
+.sw{font:500 2rem/1.2 var(--f-read);margin:0}
+.pron{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin:12px 0;align-items:baseline}
+.pron dt{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.pron dd{margin:0}
+.ipa{font:1.1rem "Doulos SIL","Charis SIL","Lucida Sans Unicode",var(--f-read)}
+.amh{font:600 1.45rem var(--f-am);color:var(--accent)}
+.phones{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.phones span{font:1.05rem "Doulos SIL","Charis SIL",var(--f-read);padding:4px 9px;border-radius:8px;background:var(--ok-soft);color:var(--ok);text-align:center}
+.phones span small{display:block;font:600 .7rem var(--f-ui);font-variant-numeric:tabular-nums}
+.phones span.weak{background:var(--weak-soft);color:var(--weak)}
+.phones span.miss{background:var(--miss-soft);color:var(--miss)}
+.meaning{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+.meaning h3{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:10px 0 2px}
+.meaning p{margin:2px 0}
+.meaning .ex{font-family:var(--f-read);font-style:italic;color:var(--muted)}
+.feedback{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:.95rem}
+.feedback.good{background:var(--ok-soft);color:var(--ok)}
+.feedback.bad{background:var(--miss-soft);color:var(--miss)}
+.thnote{font-size:.8rem;color:var(--muted);margin-top:4px}
+.thnote b{font-family:var(--f-am);font-weight:600;color:var(--fg)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Read Aloud <span>Coach</span></h1>
+    <button class="btn" id="speedBtn">Speed: normal</button>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="read">Read</button>
+    <button role="tab" aria-selected="false" data-tab="words">My words <span id="wcount"></span></button>
+    <button role="tab" aria-selected="false" data-tab="ask">Look up</button>
+    <button role="tab" aria-selected="false" data-tab="setup">Setup</button>
+  </div>
+
+  <div id="msg" class="note" hidden></div>
+
+  <!-- READ -->
+  <section id="tab-read">
+    <div id="nokey" class="note" hidden>Pronunciation scoring is off, so words will not be colored yet. <a href="#" id="goSetup">Add your free key in Setup</a>.</div>
+    <div id="summary" class="summary" hidden></div>
+    <div class="legend" id="legend" hidden><span><i style="background:var(--miss)"></i>Mispronounced</span><span><i style="background:var(--weak)"></i>Not clear</span><span><i style="background:var(--line)"></i>Good</span></div>
+    <div id="live" class="live"></div>
+    <div id="page" class="page"><span class="ph">Open your book, tap Start, and read out loud. Your words appear here as you speak. Tap Stop when you finish and the words you need to work on turn red.</span></div>
+    <p class="hint">Tap any word to hear how it should sound, see it in Amharic letters, get the meaning, and practice it.</p>
+  </section>
+
+  <!-- WORDS -->
+  <section id="tab-words" hidden>
+    <div class="tools" style="margin-bottom:12px">
+      <button class="btn primary" data-filter="learn">Practicing</button>
+      <button class="btn" data-filter="done">Mastered</button>
+    </div>
+    <ul id="wordlist" class="wordlist"></ul>
+    <p class="hint">Words marked red in your reading are saved here. Say a word well 3 times in a row to master it.</p>
+    <button class="btn danger" id="clearWords">Clear list</button>
+  </section>
+
+  <!-- ASK -->
+  <section id="tab-ask" hidden>
+    <p class="hint" style="margin-top:0">Type a word, or tap the mic and say "What does resilient mean?"</p>
+    <form id="askForm" style="display:flex;gap:8px">
+      <input type="text" id="askIn" placeholder="Type a word" autocomplete="off" autocapitalize="off">
+      <button class="btn primary" type="submit">Look up</button>
+    </form>
+    <div class="tools" style="margin-top:10px"><button class="btn" id="askMic"><span class="dot"></span> Ask by voice</button></div>
+    <h2>Recent</h2>
+    <ul id="recent" class="wordlist"></ul>
+  </section>
+
+  <!-- SETUP -->
+  <section id="tab-setup" hidden>
+    <div class="summary">
+      <p style="color:var(--fg);margin-top:0">Pronunciation scores come from Microsoft Azure Speech. It listens to each word and each sound and scores it from 0 to 100, without needing the book text. The free tier covers several hours of reading each month.</p>
+      <h2 style="margin-top:6px">Get a free key (one time)</h2>
+      <ol class="steps">
+        <li>Go to <code>portal.azure.com</code> and sign up (a card is needed to verify, the free tier is not charged).</li>
+        <li>Search for <code>Speech service</code> and tap Create.</li>
+        <li>Pick any resource group, a region such as <code>East US</code>, and the pricing tier <code>Free F0</code>. Create it.</li>
+        <li>Open the resource, go to <code>Keys and Endpoint</code>, copy <code>KEY 1</code> and the <code>Location/Region</code> (for example <code>eastus</code>).</li>
+        <li>Paste them below and tap Save.</li>
+      </ol>
+      <label class="f" for="keyIn">Key</label>
+      <input type="password" id="keyIn" autocomplete="off" placeholder="Paste KEY 1">
+      <label class="f" for="regIn">Region</label>
+      <input type="text" id="regIn" autocomplete="off" autocapitalize="off" placeholder="eastus">
+      <div class="tools" style="margin-top:12px">
+        <button class="btn primary" id="saveKey">Save</button>
+        <button class="btn" id="testKey">Test</button>
+        <button class="btn danger" id="delKey">Remove</button>
+      </div>
+      <div id="keyStatus" class="hint"></div>
+      <p class="hint">The key is saved only on this phone. Never put it inside the index.html file on GitHub, because anyone could read it there.</p>
+    </div>
+  </section>
+</div>
+
+<div class="dock" id="dock">
+  <div class="row">
+    <button class="btn primary" id="recBtn"><span class="dot"></span> Start</button>
+    <button class="btn" id="clearBtn">Clear</button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<div class="sheet" id="sheet" hidden role="dialog" aria-modal="true">
+  <div class="grip"></div>
+  <div class="in" id="sheetIn"></div>
+</div>
+
+<script>
+/* ---------- helpers ---------- */
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  del(k){try{localStorage.removeItem(k)}catch(e){}}
+};
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function note(text,err){const m=$('#msg');m.textContent=text;m.hidden=!text;m.classList.toggle('err',!!err)}
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+
+let state={
+  rate:store.get('rate',0.95),
+  words:store.get('words',{}),
+  recent:store.get('recent',[]),
+  session:store.get('session',[]),   // [{t, score, err, ph:[{p,s}]}]
+  overall:store.get('overall',null),
+  filter:'learn'
+};
+let azureOff=false;
+const azure=()=>{if(azureOff)return null;const k=store.get('azkey',''),r=store.get('azregion','');return k&&r?{key:k,region:r}:null};
+
+const TOKEN=/[A-Za-z0-9]+(?:['’][A-Za-z]+)*/g;
+function tokens(text){const out=[];let m;TOKEN.lastIndex=0;while((m=TOKEN.exec(text)))out.push({t:m[0],s:m.index,e:m.index+m[0].length});return out}
+const norm=w=>w.toLowerCase().replace(/[’‘]/g,"'").replace(/^'+|'+$/g,'');
+const STOP=new Set(['a','an','the','of','to','and','in','is','it','on','at','or','as','be']);
+const cls=w=>w.score==null?'':(w.err==='Mispronunciation'||w.score<60)?'miss':w.score<80?'weak':'';
+
+/* ---------- voice output ---------- */
+let voice=null;
+function pickVoice(){const vs=speechSynthesis.getVoices().filter(v=>/en[-_]US/i.test(v.lang));voice=vs.find(v=>/Google US English|Samantha|Aaron|Ava|Allison/i.test(v.name))||vs[0]||null}
+if('speechSynthesis' in window){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
+function say(text,{rate=state.rate,onend}={}){
+  if(!('speechSynthesis' in window))return;speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);u.lang='en-US';if(voice)u.voice=voice;u.rate=rate;
+  u.onend=u.onerror=()=>onend&&onend();speechSynthesis.speak(u);
+}
+const speeds=[[0.95,'normal'],[0.7,'slow'],[0.55,'very slow']];
+function showSpeed(){$('#speedBtn').textContent='Speed: '+(speeds.find(s=>s[0]===state.rate)||speeds[0])[1]}
+$('#speedBtn').onclick=()=>{const i=speeds.findIndex(s=>s[0]===state.rate);state.rate=speeds[(i+1)%speeds.length][0];store.set('rate',state.rate);showSpeed()};
+
+/* ---------- Azure pronunciation scoring ---------- */
+let sdkReady=null;
+function loadSDK(){if(!sdkReady)sdkReady=loadScript('https://cdn.jsdelivr.net/npm/microsoft-cognitiveservices-speech-sdk@1.40.0/distrib/browser/microsoft.cognitiveservices.speech.sdk.bundle-min.js');return sdkReady}
+function makeRecognizer(ref){
+  const az=azure(),S=window.SpeechSDK;
+  const cfg=S.SpeechConfig.fromSubscription(az.key,az.region);cfg.speechRecognitionLanguage='en-US';
+  const audio=S.AudioConfig.fromDefaultMicrophoneInput();
+  const pa=new S.PronunciationAssessmentConfig(ref||'',S.PronunciationAssessmentGradingSystem.HundredMark,S.PronunciationAssessmentGranularity.Phoneme,!!ref);
+  try{pa.phonemeAlphabet='IPA'}catch(e){}
+  try{pa.enableProsodyAssessment=true}catch(e){}
+  const r=new S.SpeechRecognizer(cfg,audio);pa.applyTo(r);return r;
+}
+function parseResult(result){
+  try{
+    const j=JSON.parse(result.properties.getProperty(window.SpeechSDK.PropertyId.SpeechServiceResponse_JsonResult));
+    const nb=(j.NBest||[])[0];if(!nb)return null;
+    const words=(nb.Words||[]).map(w=>({t:w.Word,score:Math.round(w.PronunciationAssessment?.AccuracyScore??100),err:w.PronunciationAssessment?.ErrorType||'None',
+      ph:(w.Phonemes||[]).map(p=>({p:p.Phoneme,s:Math.round(p.PronunciationAssessment?.AccuracyScore??100)}))}));
+    const pa=nb.PronunciationAssessment||{};
+    return {display:nb.Display||j.DisplayText||'',words,acc:pa.AccuracyScore,flu:pa.FluencyScore,pro:pa.ProsodyScore,pron:pa.PronScore};
+  }catch(e){return null}
+}
+/* put Azure's word scores back onto the punctuated text it returns */
+function wordsFromDisplay(display,words){
+  const toks=tokens(display),out=[];let k=0;
+  toks.forEach((t,i)=>{
+    const n=norm(t.t);let w=null;
+    for(let j=k;j<Math.min(words.length,k+3);j++){if(norm(words[j].t)===n){w=words[j];k=j+1;break}}
+    out.push({t:t.t,pre:display.slice(i?toks[i-1].e:0,t.s),score:w?w.score:null,err:w?w.err:'None',ph:w?w.ph:[]});
+  });
+  if(toks.length)out.push({t:'',pre:display.slice(toks[toks.length-1].e),score:null,ph:[]});
+  return out;
+}
+
+/* ---------- recording ---------- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+const ANDROID=/Android/i.test(navigator.userAgent);
+let recording=false,engine=null,interim='',segs=[],wake=null,scoreTotals=null;
+
+function setRecUI(on){const b=$('#recBtn');b.classList.toggle('rec',on);b.innerHTML=on?'<span class="dot"></span> Stop':'<span class="dot"></span> Start';$('#clearBtn').disabled=on}
+function renderPage(){
+  const p=$('#page');
+  if(!state.session.length&&!interim){p.innerHTML='<span class="ph">'+(recording?'Listening… start reading from your book.':'Open your book, tap Start, and read out loud. Your words appear here as you speak. Tap Stop when you finish and the words you need to work on turn red.')+'</span>';return}
+  let h='',idx=0;
+  state.session.forEach(seg=>{
+    seg.forEach(w=>{h+=esc(w.pre||'');if(w.t){h+=`<span class="w ${recording?'':cls(w)}" tabindex="0" data-k="${idx}">${esc(w.t)}</span>`}idx++});
+    h+=' ';
+  });
+  if(interim)h+=`<span class="interim">${esc(interim)}</span>`;
+  p.innerHTML=h;
+}
+function flat(){return state.session.flat()}
+
+async function start(){
+  speechSynthesis.cancel();interim='';state.session=[];state.overall=null;scoreTotals={n:0,acc:0,flu:0,pro:0,proN:0};
+  $('#summary').hidden=true;$('#legend').hidden=true;note('');
+  const az=azure();
+  if(az){
+    $('#live').textContent='Starting the microphone…';
+    try{await loadSDK()}catch(e){note('Could not load the pronunciation service. Check your internet connection.',true);return}
+    recording=true;setRecUI(true);renderPage();
+    engine=makeRecognizer('');
+    engine.recognizing=(s,e)=>{interim=e.result.text;renderPage();$('#live').textContent='Listening…'};
+    engine.recognized=(s,e)=>{
+      if(e.result.reason!==window.SpeechSDK.ResultReason.RecognizedSpeech)return;
+      const r=parseResult(e.result);interim='';if(!r||!r.words.length){renderPage();return}
+      state.session.push(wordsFromDisplay(r.display,r.words));
+      const n=r.words.length;scoreTotals.n+=n;scoreTotals.acc+=(r.acc||0)*n;scoreTotals.flu+=(r.flu||0)*n;
+      if(r.pro!=null){scoreTotals.pro+=r.pro*n;scoreTotals.proN+=n}
+      renderPage();
+    };
+    engine.canceled=(s,e)=>{
+      if(e.reason===window.SpeechSDK.CancellationReason.Error){
+        if(/quota|429|exceed|limit/i.test(e.errorDetails||'')){azureOff=true;recording=false;setRecUI(false);note('Your free scoring time for this month is used up. Reading still works as a plain transcript until next month.');return}
+        note(/401|403|auth/i.test(e.errorDetails||'')?'The Azure key or region is not correct. Check them in Setup.':'The pronunciation service stopped: '+(e.errorDetails||'unknown error'),true);
+        recording=false;setRecUI(false);
+      }
+    };
+    engine.startContinuousRecognitionAsync(()=>{$('#live').textContent='Listening…'},err=>{note('Could not start the microphone. Allow microphone access for this site.',true);recording=false;setRecUI(false)});
+  }else{
+    if(!SR){note('This browser cannot listen. Use Chrome on Android or Safari on iPhone.',true);return}
+    recording=true;setRecUI(true);renderPage();
+    let finalSeen='';
+    engine=new SR();engine.lang='en-US';engine.interimResults=true;engine.continuous=!ANDROID;
+    engine.onresult=e=>{
+      interim='';
+      for(let k=e.resultIndex;k<e.results.length;k++){
+        const t=e.results[k][0].transcript.trim();
+        if(e.results[k].isFinal){if(t&&t!==finalSeen){finalSeen=t;state.session.push(wordsFromDisplay(t,[]))}}else interim+=' '+t;
+      }
+      renderPage();
+    };
+    engine.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){note('Microphone access was blocked. Allow it in your browser settings.',true);recording=false;setRecUI(false)}};
+    engine.onend=()=>{if(recording){try{engine.start()}catch(err){}}};
+    try{engine.start()}catch(err){}
+    $('#live').textContent='Listening…';
+  }
+  if(navigator.wakeLock)navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{});
+}
+function stop(){
+  if(!recording)return;recording=false;$('#live').textContent='Analyzing…';
+  if(wake){wake.release().catch(()=>{});wake=null}
+  const done=()=>setTimeout(finish,300);
+  if(azure()&&engine&&engine.stopContinuousRecognitionAsync){engine.stopContinuousRecognitionAsync(()=>{try{engine.close()}catch(e){}done()},()=>done())}
+  else{try{engine.stop()}catch(e){}setTimeout(finish,1200)}
+}
+function finish(){
+  setRecUI(false);$('#live').textContent='';interim='';
+  const all=flat().filter(w=>w.t);
+  const scored=all.filter(w=>w.score!=null);
+  if(scoreTotals&&scoreTotals.n){
+    state.overall={acc:Math.round(scoreTotals.acc/scoreTotals.n),flu:Math.round(scoreTotals.flu/scoreTotals.n),pro:scoreTotals.proN?Math.round(scoreTotals.pro/scoreTotals.proN):null};
+  }
+  scored.forEach(w=>{if(cls(w)==='miss')trackMiss(w)});
+  store.set('session',state.session);store.set('overall',state.overall);
+  renderPage();showSummary();
+}
+function showSummary(){
+  const all=flat().filter(w=>w.t),el=$('#summary');
+  if(!all.length){el.hidden=true;$('#legend').hidden=true;return}
+  const miss=all.filter(w=>cls(w)==='miss'),weak=all.filter(w=>cls(w)==='weak');
+  const o=state.overall;el.hidden=false;$('#legend').hidden=!o;
+  if(o){
+    el.innerHTML=`<div class="scores"><div>Accuracy<b>${o.acc}</b></div><div>Fluency<b>${o.flu}</b></div>${o.pro!=null?`<div>Intonation<b>${o.pro}</b></div>`:''}<div>Words<b>${all.length}</b></div></div>
+    <p>${miss.length?`${miss.length} word${miss.length>1?'s':''} in red and ${weak.length} not clear. Tap a word to see which sound was off.`:weak.length?`No red words. ${weak.length} could be clearer.`:'Every word was clear. Very good reading.'}</p>
+    <div class="tools">${miss.length?'<button class="btn primary" id="playRed">Play red words</button>':''}${weak.length?'<button class="btn" id="playWeak">Play orange words</button>':''}</div>`;
+    if($('#playRed'))$('#playRed').onclick=()=>playList('miss');
+    if($('#playWeak'))$('#playWeak').onclick=()=>playList('weak');
+  }else{
+    el.innerHTML=`<p style="margin:0">This is what your phone heard. Compare it with your book: a word that is different from the book needs work. Add your free key in Setup to get each word scored and colored.</p>`;
+  }
+}
+function playList(kind){
+  const els=[...document.querySelectorAll('#page .w.'+kind)];let k=0;
+  const step=()=>{document.querySelectorAll('.w.speaking').forEach(e=>e.classList.remove('speaking'));if(k>=els.length)return;const el=els[k++];el.classList.add('speaking');el.scrollIntoView({block:'center',behavior:'smooth'});say(el.textContent,{rate:Math.min(state.rate,0.8),onend:()=>setTimeout(step,700)})};
+  step();
+}
+$('#recBtn').onclick=()=>recording?stop():start();
+$('#clearBtn').onclick=()=>{state.session=[];state.overall=null;store.set('session',[]);store.set('overall',null);$('#summary').hidden=true;$('#legend').hidden=true;renderPage()};
+$('#page').addEventListener('click',e=>{const w=e.target.closest('.w');if(w&&!recording)openWord(w.textContent,flat()[+w.dataset.k])});
+$('#page').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.classList.contains('w'))openWord(e.target.textContent,flat()[+e.target.dataset.k])});
+
+/* ---------- my words ---------- */
+function trackMiss(w){
+  const n=norm(w.t);if(STOP.has(n)||n.length<2)return;
+  const r=state.words[n]||{w:n,miss:0,streak:0,done:false};
+  r.miss++;r.streak=0;r.done=false;r.last=Date.now();r.score=w.score;state.words[n]=r;saveWords();
+}
+function saveWords(){store.set('words',state.words);renderWords()}
+function renderWords(){
+  const all=Object.entries(state.words);
+  const learn=all.filter(([,w])=>!w.done).length;$('#wcount').textContent=learn?`(${learn})`:'';
+  const list=all.filter(([,w])=>state.filter==='done'?w.done:!w.done).sort((a,b)=>b[1].miss-a[1].miss||b[1].last-a[1].last);
+  $('#wordlist').innerHTML=list.length?list.map(([,w])=>`<li data-w="${esc(w.w)}"><span class="wd">${esc(w.w)}</span><span class="am">${esc(w.am||'')}</span>
+    <span class="meta">missed ${w.miss}×${w.score!=null?` · last ${w.score}`:''}<span class="streak">${[0,1,2].map(i=>`<i class="${i<w.streak?'on':''}"></i>`).join('')}</span></span></li>`).join('')
+    :`<li class="empty">${state.filter==='done'?'No mastered words yet.':'No words yet. Read from your book and the red words will be saved here.'}</li>`;
+}
+document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{state.filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('primary',x===b));renderWords()});
+$('#wordlist').onclick=e=>{const li=e.target.closest('li[data-w]');if(li)openWord(li.dataset.w)};
+let armed=false;
+$('#clearWords').onclick=()=>{
+  if(!armed){armed=true;$('#clearWords').textContent='Tap again to delete all words';setTimeout(()=>{armed=false;$('#clearWords').textContent='Clear list'},3000);return}
+  state.words={};saveWords();armed=false;$('#clearWords').textContent='Clear list';
+};
+
+/* ---------- dictionary ---------- */
+async function fetchEntry(w){
+  const key='dict:'+w;const c=store.get(key,null);if(c)return c;
+  const r=await fetch('https://api.dictionaryapi.dev/api/v2/entries/en/'+encodeURIComponent(w));
+  if(!r.ok)return null;const j=await r.json();if(!Array.isArray(j))return null;
+  const ph=j.flatMap(e=>e.phonetics||[]);
+  const usP=ph.find(p=>/-us\.mp3/i.test(p.audio||'')&&p.text);
+  const anyP=usP||ph.find(p=>p.text)||{text:j[0].phonetic||''};
+  const audio=(ph.find(p=>/-us\.mp3/i.test(p.audio||''))||{}).audio||'';
+  const meanings=j.flatMap(e=>e.meanings||[]).slice(0,4).map(m=>({pos:m.partOfSpeech,defs:(m.definitions||[]).slice(0,2).map(d=>({d:d.definition,ex:d.example||''}))}));
+  const out={word:j[0].word,ipa:anyP.text||'',us:!!usP,audio,meanings};store.set(key,out);return out;
+}
+async function lookup(w){
+  w=w.toLowerCase().replace(/[’]/g,"'").replace(/[^a-z' -]/g,'').trim();if(!w)return null;
+  const t=[w];
+  if(/'s$/.test(w))t.push(w.slice(0,-2));if(/ies$/.test(w))t.push(w.slice(0,-3)+'y');if(/es$/.test(w))t.push(w.slice(0,-2));
+  if(/s$/.test(w))t.push(w.slice(0,-1));if(/ied$/.test(w))t.push(w.slice(0,-3)+'y');if(/ed$/.test(w))t.push(w.slice(0,-2),w.slice(0,-1));
+  if(/ing$/.test(w))t.push(w.slice(0,-3),w.slice(0,-3)+'e');if(/ly$/.test(w))t.push(w.slice(0,-2));
+  for(const x of t){try{const r=await fetchEntry(x);if(r)return r}catch(e){return {offline:true}}}
+  return null;
+}
+
+/* ---------- English sounds written in Amharic letters ---------- */
+const CB={p:0x1350,b:0x1260,t:0x1270,d:0x12F0,k:0x12A8,g:0x1308,f:0x1348,v:0x1268,'θ':0x1220,'ð':0x12F8,s:0x1230,z:0x12D8,
+  'ʃ':0x1238,'ʒ':0x12E0,h:0x1200,'tʃ':0x1278,'dʒ':0x1300,m:0x1218,n:0x1290,l:0x1208,r:0x1228,w:0x12C8,j:0x12E8};
+const CALIAS={'ɹ':'r','ɾ':'d','ɫ':'l','ɡ':'g','x':'k','ʍ':'w','ç':'h','y':'j','ʔ':null};
+const VW={'aɪ':[3,'ይ'],'aʊ':[3,'ው'],'ɔɪ':[6,'ይ'],'eɪ':[4,'ይ'],'oʊ':[6,''],'əʊ':[6,''],'ɪə':[2,'የ'],'eə':[4,'ር'],'ʊə':[1,'ር'],
+  'ɝ':[0,'ር'],'ɚ':[0,'ር'],'ɜ':[0,''],'i':[2,''],'ɪ':[2,''],'e':[4,''],'ɛ':[0,''],'æ':[3,''],'a':[3,''],'ɑ':[3,''],'ɒ':[3,''],
+  'ɔ':[6,''],'o':[6,''],'ʊ':[1,''],'u':[1,''],'ʌ':[0,''],'ə':[0,''],'ɐ':[0,''],'ᵻ':[2,''],'ɵ':[6,'']};
+const MULTI=['tʃ','dʒ','aɪ','aʊ','ɔɪ','eɪ','oʊ','əʊ','ɪə','eə','ʊə'];
+const syl=(b,o)=>String.fromCharCode(b+o);
+function ipaToAmharic(ipa){
+  if(!ipa)return '';
+  const s=ipa.normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[\/\[\]ˈˌ.ːˑ()‿,\s]/g,'');
+  const toks=[];for(let i=0;i<s.length;){const m=MULTI.find(x=>s.startsWith(x,i));if(m){toks.push(m);i+=m.length}else{toks.push(s[i]);i++}}
+  const cons=t=>{if(t in CALIAS)t=CALIAS[t];if(t==='ŋ')return['n','g'];return t&&CB[t]!=null?[t]:null};
+  let out='';
+  for(let i=0;i<toks.length;){
+    const t=toks[i];
+    if(VW[t]){out+=syl(0x12A0,VW[t][0])+VW[t][1];i++;continue}
+    const c=(t==='ŋ'&&/^[kgɡ]/.test(toks[i+1]||''))?['n']:cons(t);if(!c){i++;continue}
+    for(let k=0;k<c.length-1;k++)out+=syl(CB[c[k]],5);
+    const last=c[c.length-1],nx=toks[i+1];
+    if(nx&&VW[nx]){out+=syl(CB[last],VW[nx][0])+VW[nx][1];i+=2}else{out+=syl(CB[last],5);i++}
+  }
+  return out;
+}
+
+/* ---------- word sheet ---------- */
+let sheetWord='';
+function closeSheet(){$('#sheet').hidden=true;$('#scrim').hidden=true;sheetWord=''}
+$('#scrim').onclick=closeSheet;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
+const phClass=s=>s<60?'miss':s<80?'weak':'';
+function phonesHTML(ph){return `<div class="phones">${ph.map(p=>`<span class="${phClass(p.s)}">${esc(p.p)}<small>${p.s}</small></span>`).join('')}</div>`}
+async function openWord(word,data){
+  const clean=word.replace(/[’]/g,"'");sheetWord=clean;
+  $('#scrim').hidden=false;$('#sheet').hidden=false;
+  $('#sheetIn').innerHTML=`<p class="sw">${esc(clean)}</p><p class="hint">Looking up the word…</p>`;
+  say(clean,{rate:Math.min(state.rate,0.85)});
+  const e=await lookup(clean);if(sheetWord!==clean)return;
+  let ipa=e&&e.ipa?e.ipa:'';
+  if(!ipa&&data&&data.ph&&data.ph.length)ipa='/'+data.ph.map(p=>p.p).join('')+'/';
+  const am=ipaToAmharic(ipa);
+  const n=norm(clean);if(state.words[n]&&am){state.words[n].am=am;saveWords()}
+  addRecent(clean,am);
+  const th=am&&/[ሠ-ሦዸ-ዾ]/.test(am);
+  const weakPh=data&&data.ph?data.ph.filter(p=>p.s<60).map(p=>p.p):[];
+  let h=`<p class="sw">${esc(e&&e.word?e.word:clean)}</p>
+  <dl class="pron">
+    <dt>US sounds</dt><dd class="ipa">${ipa?esc(ipa)+(e&&e.ipa&&!e.us?' <span class="hint">(British entry)</span>':''):'<span class="hint">not found</span>'}</dd>
+    <dt>በአማርኛ</dt><dd class="amh">${am?esc(am):'<span class="hint" style="font:400 .9rem var(--f-ui)">not available</span>'}</dd>
+  </dl>
+  ${th?'<p class="thnote"><b>ሠ ሡ ሢ ሣ ሤ ሥ</b> stand for th in "think". <b>ዸ ዹ ዺ ዻ ዼ ዽ</b> stand for th in "this". Put your tongue between your teeth.</p>':''}`;
+  if(data&&data.score!=null){
+    h+=`<div class="meaning"><h3>Your reading: ${data.score} / 100</h3>${data.ph.length?phonesHTML(data.ph):''}
+    <p class="hint" style="margin:4px 0 0">${weakPh.length?`The sound${weakPh.length>1?'s':''} <span class="ipa">${esc(weakPh.join(', '))}</span> need${weakPh.length>1?'':'s'} the most work. Listen, then tap Say it.`:'Each box is one sound in the word, scored 0 to 100.'}</p></div>`;
+  }
+  h+=`<div class="tools" style="margin-top:12px">
+    <button class="btn primary" id="sNorm">Play</button><button class="btn" id="sSlow">Slow</button>
+    ${e&&e.audio?'<button class="btn" id="sReal">Real voice</button>':''}
+    <button class="btn" id="sSay"><span class="dot"></span> Say it</button></div><div id="fb"></div>`;
+  if(e&&e.offline)h+='<p class="hint">You seem to be offline, so the meaning could not load.</p>';
+  else if(e&&e.meanings.length){
+    h+='<div class="meaning">';
+    e.meanings.forEach(m=>{h+=`<h3>${esc(m.pos)}</h3>`;m.defs.forEach(d=>{h+=`<p>${esc(d.d)}</p>${d.ex?`<p class="ex">“${esc(d.ex)}”</p>`:''}`})});
+    h+='<div class="tools" style="margin-top:10px"><button class="btn" id="sMean">Read the meaning to me</button></div></div>';
+  }else if(!e)h+='<p class="hint">No dictionary entry found for this word.</p>';
+  const tw=state.words[n];
+  if(tw)h+=`<p class="hint">Missed ${tw.miss}× · good in a row: ${tw.streak}/3${tw.done?' · mastered':''}</p>`;
+  $('#sheetIn').innerHTML=h;
+  $('#sNorm').onclick=()=>say(clean,{rate:state.rate});
+  $('#sSlow').onclick=()=>say(clean,{rate:0.5});
+  if($('#sReal'))$('#sReal').onclick=()=>{try{new Audio(e.audio).play()}catch(x){}};
+  if($('#sMean'))$('#sMean').onclick=()=>{const m=e.meanings[0],d=m.defs[0];say(`${clean}. ${m.pos}. ${d.d} ${d.ex?'For example: '+d.ex:''}`)};
+  $('#sSay').onclick=()=>practice(clean);
+}
+function listenOnce(){
+  return new Promise((res,rej)=>{
+    if(!SR)return rej('unsupported');
+    const r=new SR();r.lang='en-US';r.continuous=false;r.interimResults=false;r.maxAlternatives=5;
+    const got=[];r.onresult=e=>{for(const a of e.results[0])got.push(a.transcript)};
+    r.onerror=e=>rej(e.error);r.onend=()=>res(got);try{r.start()}catch(e){rej('busy')}
+  });
+}
+async function practice(word){
+  const fb=$('#fb'),btn=$('#sSay');speechSynthesis.cancel();
+  btn.classList.add('rec');btn.innerHTML='<span class="dot"></span> Listening…';fb.innerHTML='';
+  const reset=()=>{btn.classList.remove('rec');btn.innerHTML='<span class="dot"></span> Say it'};
+  const n=norm(word),w=state.words[n];
+  try{
+    if(azure()){
+      await loadSDK();
+      const r=makeRecognizer(word);
+      const res=await new Promise((ok,bad)=>r.recognizeOnceAsync(x=>{try{r.close()}catch(e){}ok(x)},err=>{try{r.close()}catch(e){}bad(err)}));
+      reset();
+      const p=res.reason===window.SpeechSDK.ResultReason.RecognizedSpeech?parseResult(res):null;
+      const ww=p&&p.words.find(x=>norm(x.t)===n);
+      if(!ww){fb.innerHTML='<div class="feedback bad">I did not hear the word. Try again a little louder.</div>';return}
+      const good=ww.score>=80&&ww.err!=='Mispronunciation';
+      fb.innerHTML=`<div class="feedback ${good?'good':'bad'}">${good?'Good!':'Not yet.'} Score ${ww.score} / 100</div>${phonesHTML(ww.ph)}`;
+      if(w){if(good){w.streak++;w.score=ww.score;if(w.streak>=3){w.done=true;fb.innerHTML+='<div class="feedback good">Mastered. Moved to your mastered list.</div>'}}else{w.streak=0;w.score=ww.score}saveWords()}
+      if(!good)setTimeout(()=>say(word,{rate:0.6}),500);
+    }else{
+      const alts=await listenOnce();reset();
+      const good=alts.some(a=>tokens(a).some(t=>norm(t.t)===n));
+      fb.innerHTML=good?`<div class="feedback good">I heard “${esc(word)}”.</div>`:`<div class="feedback bad">I heard “${esc(alts[0]||'nothing')}”. Listen and try again.</div>`;
+      if(w){if(good){w.streak++;if(w.streak>=3)w.done=true}else w.streak=0;saveWords()}
+      if(!good)setTimeout(()=>say(word,{rate:0.6}),400);
+    }
+  }catch(err){reset();fb.innerHTML=`<div class="feedback bad">${err==='not-allowed'?'Microphone access was blocked. Allow it in your browser settings.':'Could not listen right now. Try again.'}</div>`}
+}
+
+/* ---------- look up ---------- */
+function addRecent(w,am){state.recent=[{w,am},...state.recent.filter(r=>r.w.toLowerCase()!==w.toLowerCase())].slice(0,15);store.set('recent',state.recent);renderRecent()}
+function renderRecent(){$('#recent').innerHTML=state.recent.length?state.recent.map(r=>`<li data-w="${esc(r.w)}"><span class="wd">${esc(r.w)}</span><span class="am">${esc(r.am||'')}</span></li>`).join(''):'<li class="empty">Words you look up will show here.</li>'}
+$('#recent').onclick=e=>{const li=e.target.closest('li[data-w]');if(li)openWord(li.dataset.w)};
+$('#askForm').onsubmit=e=>{e.preventDefault();const v=$('#askIn').value.trim();if(v){openWord(v.split(/\s+/).pop());$('#askIn').value=''}};
+function parseAsk(t){
+  t=t.toLowerCase().replace(/[?.!,"]/g,'').trim()
+   .replace(/^(what does the word|what does|what is the meaning of|what's the meaning of|the meaning of|meaning of|define the word|define|definition of|what is|what's|how do you say|how do i say|how to pronounce|pronounce)\s+/,'')
+   .replace(/\s+(mean|means)$/,'').trim();
+  return t.split(/\s+/).pop()||'';
+}
+$('#askMic').onclick=async()=>{
+  const b=$('#askMic');b.classList.add('rec');b.innerHTML='<span class="dot"></span> Listening…';
+  try{const a=await listenOnce();const w=parseAsk(a[0]||'');if(w)openWord(w);else note('I did not catch a word. Try again.')}
+  catch(err){note(err==='not-allowed'?'Microphone access was blocked. Allow it in your browser settings.':'Could not listen right now.',true)}
+  b.classList.remove('rec');b.innerHTML='<span class="dot"></span> Ask by voice';
+};
+
+/* ---------- setup ---------- */
+function showKeyState(){
+  const az=azure();$('#nokey').hidden=!!az;
+  $('#keyIn').value=az?az.key:'';$('#regIn').value=az?az.region:'';
+  $('#keyStatus').textContent=az?'Key saved. Words will be scored when you read.':'No key saved yet.';
+}
+$('#saveKey').onclick=()=>{
+  const k=$('#keyIn').value.trim(),r=$('#regIn').value.trim().toLowerCase().replace(/\s+/g,'');
+  if(!k||!r){$('#keyStatus').textContent='Enter both the key and the region.';return}
+  store.set('azkey',k);store.set('azregion',r);showKeyState();
+};
+$('#delKey').onclick=()=>{store.del('azkey');store.del('azregion');showKeyState()};
+$('#testKey').onclick=async()=>{
+  const az=azure();if(!az){$('#keyStatus').textContent='Save a key first.';return}
+  $('#keyStatus').textContent='Testing…';
+  try{
+    const r=await fetch(`https://${az.region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`,{method:'POST',headers:{'Ocp-Apim-Subscription-Key':az.key}});
+    $('#keyStatus').textContent=r.ok?'The key works. You are ready to read.':r.status===401?'The key was refused. Copy KEY 1 again and check the region.':`Test failed (code ${r.status}). Check the region spelling, for example eastus.`;
+  }catch(e){$('#keyStatus').textContent='Could not reach Azure. Check the region spelling and your internet, or just try reading.'}
+};
+$('#goSetup').onclick=e=>{e.preventDefault();showTab('setup')};
+
+/* ---------- tabs ---------- */
+function showTab(t){
+  document.querySelectorAll('[data-tab]').forEach(x=>x.setAttribute('aria-selected',x.dataset.tab===t));
+  ['read','words','ask','setup'].forEach(x=>$('#tab-'+x).hidden=x!==t);
+  $('#dock').hidden=t!=='read';
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+if(!window.isSecureContext)note('Open this page from an https address (for example GitHub Pages) so the microphone can work.',true);
+
+if('serviceWorker' in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js').catch(()=>{});
+showSpeed();showKeyState();renderWords();renderRecent();renderPage();showSummary();
+</script>
+</body>
+</html>
